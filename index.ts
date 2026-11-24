@@ -16,6 +16,7 @@ import {
   crateForFile,
   editCheckRoot,
   spawnCaptured,
+  killProcessGroup,
 } from "./lib.ts";
 import type { Plugin } from "@opencode/plugin";
 
@@ -211,7 +212,7 @@ export default {
 
     return () => {
       for (const s of state.values()) if (s.timer) clearTimeout(s.timer);
-      for (const c of children) c.kill();
+      for (const c of children) killProcessGroup(c);
     };
   },
 } satisfies Plugin;

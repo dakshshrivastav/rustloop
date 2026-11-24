@@ -119,11 +119,28 @@ export interface SpawnResult {
   aborted: boolean;
 }
 
+/** Kill a spawned child AND its descendants. On Unix the child is a process-group
+ *  leader (detached), so signalling -pid reaps cargo's rustc children too — they
+ *  would otherwise orphan and keep writing to target/. Windows falls back to the leader. */
+export function killProcessGroup(child: ChildProcess): void {
+  if (process.platform === "win32" || child.pid === undefined) {
+    child.kill("SIGKILL");
+    return;
+  }
+  try {
+    process.kill(-child.pid, "SIGKILL");
+  } catch {
+    try {
+      child.kill("SIGKILL");
+    } catch {}
+  }
+}
+
 /** Async spawn with timeout + abort support; never rejects. Kills the child on timeout/abort
  *  so a stopped tool call cannot leave cargo holding the target lock. */
 export function spawnCaptured(cmd: string, args: string[], opts: SpawnOptions): Promise<SpawnResult> {
   return new Promise((resolve) => {
-    const child = spawn(cmd, args, { cwd: opts.cwd, env: opts.env });
+    const child = spawn(cmd, args, { cwd: opts.cwd, env: opts.env, detached: process.platform !== "win32" });
     opts.registry?.add(child);
     let stdout = "";
     let stderr = "";
@@ -140,16 +157,16 @@ export function spawnCaptured(cmd: string, args: string[], opts: SpawnOptions): 
     };
     const timer = setTimeout(() => {
       timedOut = true;
-      child.kill("SIGKILL");
+      killProcessGroup(child);
     }, opts.timeout);
     const onAbort = () => {
       aborted = true;
-      child.kill("SIGKILL");
+      killProcessGroup(child);
     };
     if (opts.signal) {
       if (opts.signal.aborted) {
         aborted = true;
-        child.kill("SIGKILL");
+        killProcessGroup(child);
       } else {
         opts.signal.addEventListener("abort", onAbort, { once: true });
       }

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, existsSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -203,4 +203,41 @@ test("spawnCaptured reports timedOut and kills the child on timeout", async () =
   const res = await lib.spawnCaptured("sleep", ["5"], { cwd: tmpdir(), timeout: 100 });
   assert.equal(res.timedOut, true);
   assert.ok(Date.now() - t0 < 2000);
+});
+
+// M2: killing the leader must not orphan grandchildren (cargo → rustc) that keep the target lock.
+test("spawnCaptured kills the whole process group on abort (no orphaned grandchildren)", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "rustloop-pg-"));
+  const pidfile = join(dir, "child.pid");
+  let grandpid = 0;
+  try {
+    const ac = new AbortController();
+    // sh backgrounds a sleep (grandchild), records its pid, then waits.
+    const p = lib.spawnCaptured("sh", ["-c", `sleep 5 & echo $! > ${pidfile}; wait`], {
+      cwd: dir,
+      timeout: 10_000,
+      signal: ac.signal,
+    });
+    void p.catch(() => {});
+    for (let i = 0; i < 200 && !existsSync(pidfile); i++) await new Promise((r) => setTimeout(r, 10));
+    grandpid = Number(readFileSync(pidfile, "utf8").trim());
+    assert.ok(Number.isInteger(grandpid) && grandpid > 0, "grandchild pid recorded");
+    ac.abort();
+    // Bounded grace — deliberately NOT awaiting p (an orphan holds the pipe and would block).
+    await new Promise((r) => setTimeout(r, 400));
+    let alive = true;
+    try {
+      process.kill(grandpid, 0);
+    } catch {
+      alive = false;
+    }
+    assert.equal(alive, false, `grandchild ${grandpid} must be killed promptly, not orphaned`);
+  } finally {
+    if (grandpid > 0) {
+      try {
+        process.kill(grandpid, "SIGKILL");
+      } catch {}
+    }
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
