@@ -207,7 +207,7 @@ export default {
       }
       dbg(`context hook root=${root} parts=${parts.length}`);
       if (!parts.length) return;
-      event.system.push({ type: "text", text: "[rust-dev]\n" + parts.join("\n") });
+      event.system.push({ type: "text", text: "[rustloop]\n" + parts.join("\n") });
     });
 
     return () => {

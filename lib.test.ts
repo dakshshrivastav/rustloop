@@ -99,15 +99,15 @@ test("parseCargoDiagnostics caps at 50 lines and reports the remainder", () => {
 const meta = {
   workspace_root: "/ws",
   packages: [
-    { name: "folio-core", manifest_path: "/ws/crates/core/Cargo.toml", dependencies: [] },
-    { name: "folio-desktop", manifest_path: "/ws/crates/desktop/Cargo.toml", dependencies: [{ name: "folio-core" }, { name: "gtk4" }] },
+    { name: "demo-core", manifest_path: "/ws/crates/core/Cargo.toml", dependencies: [] },
+    { name: "demo-desktop", manifest_path: "/ws/crates/desktop/Cargo.toml", dependencies: [{ name: "demo-core" }, { name: "gtk4" }] },
   ],
 };
 
 test("formatCrateMap lists members with relative paths and only internal dep edges", () => {
   assert.equal(
     formatCrateMap(meta),
-    "Rust workspace (2 crates):\n- folio-core → crates/core\n- folio-desktop → crates/desktop\ninternal deps: folio-desktop → folio-core",
+    "Rust workspace (2 crates):\n- demo-core → crates/core\n- demo-desktop → crates/desktop\ninternal deps: demo-desktop → demo-core",
   );
 });
 
@@ -137,7 +137,7 @@ test("isRustEdit recognizes edit/write/patch on .rs and rejects everything else"
 });
 
 test("findCargoRoot walks up to the nearest Cargo.toml, inclusive of the start dir", () => {
-  const base = mkdtempSync(join(tmpdir(), "rust-dev-test-"));
+  const base = mkdtempSync(join(tmpdir(), "rustloop-test-"));
   try {
     mkdirSync(join(base, "ws", "src"), { recursive: true });
     writeFileSync(join(base, "ws", "Cargo.toml"), "[package]\nname = \"x\"\n");
@@ -150,7 +150,7 @@ test("findCargoRoot walks up to the nearest Cargo.toml, inclusive of the start d
 });
 
 test("crateForFile matches member dir with a path boundary, not a bare prefix", () => {
-  assert.equal(crateForFile("/ws", "/ws/crates/core/src/lib.rs", meta), "folio-core");
+  assert.equal(crateForFile("/ws", "/ws/crates/core/src/lib.rs", meta), "demo-core");
   assert.equal(crateForFile("/ws", "/ws/crates/core-extra/src/lib.rs", meta), undefined);
   assert.equal(crateForFile("/ws", "/ws/other/x.rs", meta), undefined);
 });
@@ -170,7 +170,7 @@ test("crateForFile picks the longest matching dir when a root package overlaps m
 
 // C1: the check must be keyed by the SESSION workspace root, not the edited member's nearest root.
 test("editCheckRoot canonicalizes to the location workspace root for nested member edits", () => {
-  const base = mkdtempSync(join(tmpdir(), "rust-dev-ws-"));
+  const base = mkdtempSync(join(tmpdir(), "rustloop-ws-"));
   try {
     mkdirSync(join(base, "ws", "crates", "core", "src"), { recursive: true });
     writeFileSync(join(base, "ws", "Cargo.toml"), "[workspace]\nmembers=[\"crates/core\"]\n");
