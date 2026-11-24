@@ -1,0 +1,5 @@
+node_modules/
+DEBUG
+debug.log
+*.log
+target/
